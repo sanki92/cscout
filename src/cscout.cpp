@@ -95,6 +95,7 @@ using namespace picoQL;
 #include "sql.h"
 #include "workdb.h"
 #include "obfuscate.h"
+#include "restapi.h"
 
 #define ids Identifier::ids
 
@@ -3750,6 +3751,9 @@ main(int argc, char *argv[])
 		swill_handle("setproj.html", set_project_page, NULL);
 		swill_handle("logo.png", logo_page, NULL);
 		swill_handle("index.html", index_page, 0);
+
+		// JSON API for external tool integration
+		rest_api_register();
 	}
 
 

@@ -38,7 +38,7 @@ OBJBASE=eclass.o fchar.o filedetails.o fileid.o pdtoken.o pltoken.o debug.o \
   logo.o workdb.o obfuscate.o sql.o md5.o os.o pager.o \
   option.o filequery.o mcall.o filemetrics.o funmetrics.o ctconst.o \
   dirbrowse.o html.o fileutils.o gdisplay.o globobj.o ctag.o timer.o \
-  static_init.o initializer.o
+  static_init.o initializer.o restapi.o
 
 # monitor.o
 
@@ -65,7 +65,7 @@ CFILES=md5.cpp attr.cpp call.cpp cscout.cpp ctag.cpp ctconst.cpp \
   logo.cpp macro.cpp mcall.cpp metrics.cpp obfuscate.cpp option.cpp os.cpp \
   pager.cpp pdtoken.cpp pltoken.cpp ptoken.cpp query.cpp simple_cpp.cpp \
   sql.cpp stab.cpp tchar.cpp timer.cpp token.cpp tokid.cpp \
-  tokmap.cpp type.cpp workdb.cpp static_init.cpp dbtoken.cpp
+  tokmap.cpp type.cpp workdb.cpp static_init.cpp dbtoken.cpp restapi.cpp
 
 HEADERS=attr.h call.h compiledre.h cpp.h ctag.h ctconst.h ctoken.h \
   debug.h defs.h dirbrowse.h eclass.h error.h eval.h fcall.h fchar.h fdep.h \
@@ -76,7 +76,7 @@ HEADERS=attr.h call.h compiledre.h cpp.h ctag.h ctconst.h ctoken.h \
   option.h os.h pager.h pdtoken.h pltoken.h ptoken.h query.h sql.h stab.h \
   swill.h tchar.h timer.h token.h tokid.h tokmap.h type.h type2.h version.h \
   wdefs.h wincs.h workdb.h ytoken.h macro_arg_processor.h dbtoken.h \
-  debug_out.h
+  restapi.h debug_out.h
 
 OTHERSRC=style.css csmake.pl cswc.pl tokname.pl runtest.sh eval.y parse.y \
   Makefile
