@@ -1,3 +1,4 @@
+#include <fstream>
 #include <map>
 #include <string>
 #include <vector>
@@ -54,11 +55,14 @@ static map<Call *, int> call_to_id;
 static map<int, Call *> id_to_call;
 static int next_call_id = 1;
 
+static bool id_maps_built = false;
+
 static void
 build_id_maps()
 {
-	if (!ec_to_eid.empty())
+	if (id_maps_built)
 		return;
+	id_maps_built = true;
 
 	for (IdProp::iterator i = ids.begin(); i != ids.end(); i++) {
 		Eclass *e = i->first;
@@ -653,8 +657,8 @@ api_source(FILE *of, void *)
 	}
 
 	Fileid fi(fid);
-	FILE *src = fopen(fi.get_path().c_str(), "r");
-	if (!src) {
+	ifstream src(fi.get_path().c_str());
+	if (!src.is_open()) {
 		swill_setresponse("404 Not Found");
 		fprintf(of, "{\"error\":\"file not readable\"}");
 		return 0;
@@ -663,18 +667,16 @@ api_source(FILE *of, void *)
 	fprintf(of, "{\"fid\":%d,\"name\":\"%s\",\"lines\":[",
 		fid, json_escape(fi.get_path()).c_str());
 
-	char buf[4096];
+	string line;
 	bool first = true;
-	while (fgets(buf, sizeof(buf), src)) {
-		size_t len = strlen(buf);
-		while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
-			buf[--len] = '\0';
+	while (getline(src, line)) {
+		if (!line.empty() && line[line.size() - 1] == '\r')
+			line.erase(line.size() - 1);
 		if (!first) fprintf(of, ",");
 		first = false;
-		fprintf(of, "\"%s\"", json_escape(string(buf, len)).c_str());
+		fprintf(of, "\"%s\"", json_escape(line).c_str());
 	}
 
-	fclose(src);
 	fprintf(of, "]}");
 	return 0;
 }
