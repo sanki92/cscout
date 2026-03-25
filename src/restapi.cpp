@@ -544,78 +544,93 @@ api_functions(FILE *of, void *)
 	return 0;
 }
 
-static int
-api_function(FILE *of, void *)
+static Call *
+lookup_call(FILE *of, const char *param)
 {
-	json_header(of);
 	build_id_maps();
-
 	int id;
 	if (!swill_getargs("i(id)", &id)) {
 		swill_setresponse("400 Bad Request");
 		fprintf(of, "{\"error\":\"missing id parameter\"}");
-		return 0;
+		return NULL;
 	}
-
 	map<int, Call *>::iterator it = id_to_call.find(id);
 	if (it == id_to_call.end()) {
 		swill_setresponse("404 Not Found");
 		fprintf(of, "{\"error\":\"unknown function id\"}");
-		return 0;
+		return NULL;
 	}
+	return it->second;
+}
 
-	Call *f = it->second;
+static int
+api_function(FILE *of, void *)
+{
+	json_header(of);
+	Call *f = lookup_call(of, "id");
+	if (!f) return 0;
 
-	char *callers_str = swill_getvar("callers");
-	char *callees_str = swill_getvar("callees");
+	fprintf(of,
+		"{\"id\":%d"
+		",\"name\":\"%s\""
+		",\"is_macro\":%s"
+		",\"is_defined\":%s"
+		",\"is_declared\":%s"
+		",\"is_file_scoped\":%s"
+		",\"fid\":%d"
+		",\"fanin\":%d"
+		",\"fanout\":%d}",
+		get_call_id(f),
+		json_escape(f->get_name()).c_str(),
+		f->is_macro() ? "true" : "false",
+		f->is_defined() ? "true" : "false",
+		f->is_declared() ? "true" : "false",
+		f->is_file_scoped() ? "true" : "false",
+		f->get_fileid().get_id(),
+		f->get_num_caller(),
+		f->get_num_call());
+	return 0;
+}
 
-	if (callers_str) {
-		fprintf(of, "[");
-		bool first = true;
-		for (Call::const_fiterator_type ci = f->caller_begin();
-		     ci != f->caller_end(); ci++) {
-			if (!first) fprintf(of, ",");
-			first = false;
-			fprintf(of,
-				"{\"id\":%d,\"name\":\"%s\"}",
-				get_call_id(*ci),
-				json_escape((*ci)->get_name()).c_str());
-		}
-		fprintf(of, "]");
-	} else if (callees_str) {
-		fprintf(of, "[");
-		bool first = true;
-		for (Call::const_fiterator_type ci = f->call_begin();
-		     ci != f->call_end(); ci++) {
-			if (!first) fprintf(of, ",");
-			first = false;
-			fprintf(of,
-				"{\"id\":%d,\"name\":\"%s\"}",
-				get_call_id(*ci),
-				json_escape((*ci)->get_name()).c_str());
-		}
-		fprintf(of, "]");
-	} else {
-		fprintf(of,
-			"{\"id\":%d"
-			",\"name\":\"%s\""
-			",\"is_macro\":%s"
-			",\"is_defined\":%s"
-			",\"is_declared\":%s"
-			",\"is_file_scoped\":%s"
-			",\"fid\":%d"
-			",\"fanin\":%d"
-			",\"fanout\":%d}",
-			get_call_id(f),
-			json_escape(f->get_name()).c_str(),
-			f->is_macro() ? "true" : "false",
-			f->is_defined() ? "true" : "false",
-			f->is_declared() ? "true" : "false",
-			f->is_file_scoped() ? "true" : "false",
-			f->get_fileid().get_id(),
-			f->get_num_caller(),
-			f->get_num_call());
+static int
+api_function_callers(FILE *of, void *)
+{
+	json_header(of);
+	Call *f = lookup_call(of, "id");
+	if (!f) return 0;
+
+	fprintf(of, "[");
+	bool first = true;
+	for (Call::const_fiterator_type ci = f->caller_begin();
+	     ci != f->caller_end(); ci++) {
+		if (!first) fprintf(of, ",");
+		first = false;
+		fprintf(of, "{\"id\":%d,\"name\":\"%s\"}",
+			get_call_id(*ci),
+			json_escape((*ci)->get_name()).c_str());
 	}
+	fprintf(of, "]");
+	return 0;
+}
+
+static int
+api_function_callees(FILE *of, void *)
+{
+	json_header(of);
+	Call *f = lookup_call(of, "id");
+	if (!f) return 0;
+
+	fprintf(of, "[");
+	bool first = true;
+	for (Call::const_fiterator_type ci = f->call_begin();
+	     ci != f->call_end(); ci++) {
+		if (!first) fprintf(of, ",");
+		first = false;
+		fprintf(of, "{\"id\":%d,\"name\":\"%s\"}",
+			get_call_id(*ci),
+			json_escape((*ci)->get_name()).c_str());
+	}
+	fprintf(of, "]");
 	return 0;
 }
 
@@ -677,5 +692,7 @@ rest_api_register()
 	swill_handle("api/identifier", api_identifier, NULL);
 	swill_handle("api/functions", api_functions, NULL);
 	swill_handle("api/function", api_function, NULL);
+	swill_handle("api/function_callers", api_function_callers, NULL);
+	swill_handle("api/function_callees", api_function_callees, NULL);
 	swill_handle("api/source", api_source, NULL);
 }
