@@ -257,7 +257,17 @@ api_files(FILE *of, void *)
 		}
 	}
 
-	fprintf(of, "[");
+	int total = 0;
+	for (vector<Fileid>::iterator i = files.begin();
+	     i != files.end(); i++) {
+		if (writable_only && i->get_readonly())
+			continue;
+		if (pid >= 0 && !Filedetails::get_attribute(*i, pid))
+			continue;
+		total++;
+	}
+
+	fprintf(of, "{\"total\":%d,\"items\":[", total);
 	bool first = true;
 	int seen = 0;
 	int emitted = 0;
@@ -279,7 +289,7 @@ api_files(FILE *of, void *)
 			json_escape(i->get_path()).c_str(),
 			i->get_readonly() ? "true" : "false");
 	}
-	fprintf(of, "]");
+	fprintf(of, "]}");
 	return 0;
 }
 
@@ -337,7 +347,17 @@ api_identifiers(FILE *of, void *)
 	int limit = query_int("limit", -1);
 	int offset = query_int("offset", 0);
 
-	fprintf(of, "[");
+	int total = 0;
+	for (IdProp::iterator i = ids.begin(); i != ids.end(); i++) {
+		Eclass *e = i->first;
+		if (filter_unused && !e->is_unused())
+			continue;
+		if (filter_writable && e->get_attribute(is_readonly))
+			continue;
+		total++;
+	}
+
+	fprintf(of, "{\"total\":%d,\"items\":[", total);
 	bool first = true;
 	int seen = 0;
 	int emitted = 0;
@@ -397,7 +417,7 @@ api_identifiers(FILE *of, void *)
 			e->get_attribute(is_lscope) ? "true" : "false",
 			id.get_xfile() ? "true" : "false");
 	}
-	fprintf(of, "]");
+	fprintf(of, "]}");
 	return 0;
 }
 
@@ -475,7 +495,15 @@ api_functions(FILE *of, void *)
 	int limit = query_int("limit", -1);
 	int offset = query_int("offset", 0);
 
-	fprintf(of, "[");
+	int total = 0;
+	for (Call::const_fmap_iterator_type i = Call::fbegin();
+	     i != Call::fend(); i++) {
+		if (defined_only && !i->second->is_defined())
+			continue;
+		total++;
+	}
+
+	fprintf(of, "{\"total\":%d,\"items\":[", total);
 	bool first = true;
 	int seen = 0;
 	int emitted = 0;
@@ -512,7 +540,7 @@ api_functions(FILE *of, void *)
 			c->get_num_caller(),
 			c->get_num_call());
 	}
-	fprintf(of, "]");
+	fprintf(of, "]}");
 	return 0;
 }
 
