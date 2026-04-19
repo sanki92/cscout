@@ -1,8 +1,10 @@
 #include <fstream>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 #include <set>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -725,6 +727,133 @@ api_source(FILE *of, void *)
 	return 0;
 }
 
+static bool
+is_valid_c_identifier(const string &s)
+{
+	if (s.empty())
+		return false;
+	unsigned char first = static_cast<unsigned char>(s[0]);
+	if (!(isalpha(first) || first == '_'))
+		return false;
+	for (string::size_type i = 1; i < s.size(); i++) {
+		unsigned char c = static_cast<unsigned char>(s[i]);
+		if (!(isalnum(c) || c == '_'))
+			return false;
+	}
+	return true;
+}
+
+static int
+api_refactor(FILE *of, void *)
+{
+	json_header(of);
+	build_id_maps();
+
+	int eid;
+	if (!swill_getargs("i(eid)", &eid)) {
+		swill_setresponse("400 Bad Request");
+		fprintf(of, "{\"error\":\"missing eid parameter\"}");
+		return 0;
+	}
+
+	char *newname_raw = swill_getvar("newname");
+	if (!newname_raw || !*newname_raw) {
+		swill_setresponse("400 Bad Request");
+		fprintf(of, "{\"error\":\"missing newname parameter\"}");
+		return 0;
+	}
+	string newname(newname_raw);
+	if (!is_valid_c_identifier(newname)) {
+		swill_setresponse("400 Bad Request");
+		fprintf(of, "{\"error\":\"newname is not a valid C identifier\"}");
+		return 0;
+	}
+
+	map<int, Eclass *>::iterator it = eid_to_ec.find(eid);
+	if (it == eid_to_ec.end()) {
+		swill_setresponse("404 Not Found");
+		fprintf(of, "{\"error\":\"unknown eid\"}");
+		return 0;
+	}
+	Eclass *e = it->second;
+
+	if (!e->is_identifier()) {
+		swill_setresponse("409 Conflict");
+		fprintf(of, "{\"error\":\"eid does not refer to a renameable identifier\"}");
+		return 0;
+	}
+
+	if (e->get_attribute(is_readonly) && !Option::rename_override_ro->get()) {
+		swill_setresponse("409 Conflict");
+		fprintf(of, "{\"error\":\"identifier is read-only; enable the rename_override_ro option to allow renaming\"}");
+		return 0;
+	}
+
+	IdProp::iterator idi = ids.find(e);
+	if (idi == ids.end()) {
+		swill_setresponse("404 Not Found");
+		fprintf(of, "{\"error\":\"identifier not found\"}");
+		return 0;
+	}
+	const string old_name = idi->second.get_id();
+	const int old_length = e->get_len();
+
+	map<int, vector<pair<int, long> > > by_file;
+	const setTokid &members = e->get_members();
+	for (setTokid::const_iterator mi = members.begin();
+	     mi != members.end(); mi++) {
+		Fileid fi = mi->get_fileid();
+		int line = Filedetails::get_line_number(fi, mi->get_streampos());
+		by_file[fi.get_id()].push_back(
+			make_pair(line, (long)mi->get_streampos()));
+	}
+
+	int total_replacements = (int)members.size();
+	int affected_files = (int)by_file.size();
+
+	fprintf(of,
+		"{\"eid\":%d"
+		",\"old_name\":\"%s\""
+		",\"new_name\":\"%s\""
+		",\"old_length\":%d"
+		",\"affected_files\":%d"
+		",\"total_replacements\":%d"
+		",\"changes\":[",
+		eid,
+		json_escape(old_name).c_str(),
+		json_escape(newname).c_str(),
+		old_length,
+		affected_files,
+		total_replacements);
+
+	bool first_file = true;
+	for (map<int, vector<pair<int, long> > >::iterator fit = by_file.begin();
+	     fit != by_file.end(); fit++) {
+		if (!first_file) fprintf(of, ",");
+		first_file = false;
+		Fileid fi(fit->first);
+		fprintf(of,
+			"{\"fid\":%d"
+			",\"file\":\"%s\""
+			",\"readonly\":%s"
+			",\"replacements\":[",
+			fit->first,
+			json_escape(fi.get_path()).c_str(),
+			fi.get_readonly() ? "true" : "false");
+		bool first_rep = true;
+		for (vector<pair<int, long> >::iterator rit = fit->second.begin();
+		     rit != fit->second.end(); rit++) {
+			if (!first_rep) fprintf(of, ",");
+			first_rep = false;
+			fprintf(of, "{\"line\":%d,\"offset\":%ld}",
+				rit->first, rit->second);
+		}
+		fprintf(of, "]}");
+	}
+	fprintf(of, "]}");
+	return 0;
+}
+
 void
 rest_api_register()
 {
@@ -742,4 +871,5 @@ rest_api_register()
 	swill_handle("api/function_callees", api_function_callees, NULL);
 	swill_handle("api/function_metrics", api_function_metrics, NULL);
 	swill_handle("api/source", api_source, NULL);
+	swill_handle("api/refactor", api_refactor, NULL);
 }
