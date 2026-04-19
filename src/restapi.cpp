@@ -639,6 +639,50 @@ api_function_callees(FILE *of, void *)
 }
 
 static int
+api_function_metrics(FILE *of, void *)
+{
+	json_header(of);
+	Call *f = lookup_call(of, "id");
+	if (!f) return 0;
+
+	if (!f->is_defined()) {
+		swill_setresponse("404 Not Found");
+		fprintf(of, "{\"error\":\"function is not defined in this workspace\"}");
+		return 0;
+	}
+
+	fprintf(of, "{\"id\":%d,\"name\":\"%s\",\"metrics\":{",
+		get_call_id(f),
+		json_escape(f->get_name()).c_str());
+
+	const FunMetrics &pre = f->get_pre_cpp_metrics();
+	const FunMetrics &post = f->get_post_cpp_metrics();
+
+	bool first = true;
+	for (int j = 0; j < FunMetrics::metric_max; j++) {
+		if (Metrics::is_internal<FunMetrics>(j))
+			continue;
+		const string mname = Metrics::get_name<FunMetrics>(j);
+		if (mname.empty())
+			continue;
+		if (!first) fprintf(of, ",");
+		first = false;
+		fprintf(of, "\"%s\":{", json_escape(mname).c_str());
+		if (Metrics::is_pre_cpp<FunMetrics>(j))
+			fprintf(of, "\"pre_cpp\":%.10g", pre.get_metric(j));
+		else
+			fprintf(of, "\"pre_cpp\":null");
+		if (Metrics::is_post_cpp<FunMetrics>(j))
+			fprintf(of, ",\"post_cpp\":%.10g", post.get_metric(j));
+		else
+			fprintf(of, ",\"post_cpp\":null");
+		fprintf(of, "}");
+	}
+	fprintf(of, "}}");
+	return 0;
+}
+
+static int
 api_source(FILE *of, void *)
 {
 	json_header(of);
@@ -696,5 +740,6 @@ rest_api_register()
 	swill_handle("api/function", api_function, NULL);
 	swill_handle("api/function_callers", api_function_callers, NULL);
 	swill_handle("api/function_callees", api_function_callees, NULL);
+	swill_handle("api/function_metrics", api_function_metrics, NULL);
 	swill_handle("api/source", api_source, NULL);
 }
